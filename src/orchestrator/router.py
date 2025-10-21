@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from typing import Any, Dict, Literal
+from collections.abc import Mapping
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from httpx import HTTPStatusError, RequestError
@@ -32,6 +33,30 @@ class UpdateConversationResponse(BaseModel):
 router = APIRouter(prefix="/v1")
 
 
+_CUSTOMGPT_STATUS_MAP: tuple[tuple[type[CustomGPTError], int], ...] = (
+    (CustomGPTClientError, status.HTTP_400_BAD_REQUEST),
+    (CustomGPTServerError, status.HTTP_502_BAD_GATEWAY),
+    (CustomGPTError, status.HTTP_500_INTERNAL_SERVER_ERROR),
+)
+
+
+def _raise_customgpt_exception(
+    exc: CustomGPTError,
+    *,
+    fallback_messages: Mapping[type[CustomGPTError], str] | None = None,
+) -> None:
+    """Translate CustomGPT errors into FastAPI HTTP exceptions."""
+
+    fallback_messages = fallback_messages or {}
+    for error_type, status_code in _CUSTOMGPT_STATUS_MAP:
+        if isinstance(exc, error_type):
+            fallback = fallback_messages.get(error_type)
+            detail = str(exc) or fallback or str(exc)
+            raise HTTPException(status_code=status_code, detail=detail) from exc
+
+    raise exc
+
+
 @router.get("/projects/{project_id}/conversations", status_code=status.HTTP_200_OK)
 def list_project_conversations(
     project_id: str = Path(..., min_length=1),
@@ -53,21 +78,8 @@ def list_project_conversations(
             user_filter=user_filter,
             name=name,
         )
-    except CustomGPTClientError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(exc),
-        ) from exc
-    except CustomGPTServerError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(exc),
-        ) from exc
     except CustomGPTError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(exc),
-        ) from exc
+        _raise_customgpt_exception(exc)
     except HTTPStatusError as exc:  # pragma: no cover - compatibility with DummyClient tests
         status_code = exc.response.status_code
         try:
@@ -108,21 +120,15 @@ def update_conversation(
             session_id=session_id,
             name=request.name,
         )
-    except CustomGPTClientError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(exc) or "Upstream request failed with a client error.",
-        ) from exc
-    except CustomGPTServerError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(exc) or "Upstream service encountered an error.",
-        ) from exc
     except CustomGPTError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(exc) or "Unexpected error talking to CustomGPT.",
-        ) from exc
+        _raise_customgpt_exception(
+            exc,
+            fallback_messages={
+                CustomGPTClientError: "Upstream request failed with a client error.",
+                CustomGPTServerError: "Upstream service encountered an error.",
+                CustomGPTError: "Unexpected error talking to CustomGPT.",
+            },
+        )
 
     return UpdateConversationResponse(detail="Conversation updated.", data=data)
 
