@@ -93,18 +93,14 @@ def _extract_orchestrated_text(content: str) -> str:
     normalized = content.replace("\r\n", "\n").replace("\r", "\n")
     lines = normalized.split("\n")
 
-    first_non_blank_raw = ""
-    first_non_blank_stripped = ""
     for line in lines:
         stripped = line.strip()
-        if stripped:
-            first_non_blank_raw = line
-            first_non_blank_stripped = stripped
-            break
-
-    if first_non_blank_stripped != _ORCHESTRATOR_HEADER:
-    first_non_blank = next((line for line in lines if line.strip()), "")
-    if first_non_blank != _ORCHESTRATOR_HEADER:
+        if not stripped:
+            continue
+        if stripped != _ORCHESTRATOR_HEADER:
+            return content
+        break
+    else:
         return content
 
     begin_index = None
@@ -115,7 +111,6 @@ def _extract_orchestrated_text(content: str) -> str:
 
     if begin_index is None:
         return ""
-        return content
 
     end_index = None
     for index in range(begin_index, len(lines)):
