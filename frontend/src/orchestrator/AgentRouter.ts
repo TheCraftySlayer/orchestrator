@@ -61,8 +61,10 @@ export class AgentRouter {
 
     const messages: AgentMessage[] = [];
 
-    if (orchestratorDecision.summary.trim() !== '') {
-      messages.push(this.buildAgentMessage(this.orchestrator, orchestratorDecision.summary));
+    const summaryText = orchestratorDecision.summary;
+
+    if (summaryText.trim() !== '') {
+      messages.push(this.buildAgentMessage(this.orchestrator, summaryText));
     }
 
     const expertMessage = await this.requestExpertResponse(resolvedAgent, userMessage);
@@ -108,11 +110,7 @@ export class AgentRouter {
         ? this.agents.find((candidate) => candidate.id === agentId)?.name
         : undefined;
 
-      const summary = parsed.summary
-        ? parsed.summary
-        : agentName
-          ? `Routing conversation to ${agentName}.`
-          : 'Routing decision received from orchestrator.';
+      const summary = this.normalizeSummary(parsed.summary, agentName);
 
       return { agentId, summary };
     } catch (error) {
@@ -125,7 +123,7 @@ export class AgentRouter {
     }
   }
 
-  private parseRoutingDecision(response: string): { agentId?: string | null; summary?: string } {
+  private parseRoutingDecision(response: string): { agentId?: string | null; summary?: unknown } {
     const trimmed = response.trim();
 
     const jsonMatch = trimmed.match(/\{[\s\S]*\}/);
@@ -134,7 +132,7 @@ export class AgentRouter {
     try {
       const parsed = JSON.parse(candidate) as {
         agentId?: string | null;
-        summary?: string;
+        summary?: unknown;
         reason?: string;
       };
 
@@ -153,6 +151,30 @@ export class AgentRouter {
         summary: trimmed,
       };
     }
+  }
+
+  private normalizeSummary(summary: unknown, agentName?: string): string {
+    if (typeof summary === 'string') {
+      return summary;
+    }
+
+    if (typeof summary === 'number' || typeof summary === 'boolean') {
+      return String(summary);
+    }
+
+    if (summary && typeof summary === 'object') {
+      try {
+        return JSON.stringify(summary);
+      } catch {
+        // fall through to default handling when JSON serialization fails
+      }
+    }
+
+    if (agentName) {
+      return `Routing conversation to ${agentName}.`;
+    }
+
+    return 'Routing decision received from orchestrator.';
   }
 
   private resolveAgent(decision: RoutingDecision, prompt: string): AgentConfig {
