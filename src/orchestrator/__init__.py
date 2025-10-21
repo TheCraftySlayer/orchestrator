@@ -1,3 +1,10 @@
+"""Top-level package for the CustomGPT Orchestrator service."""
+
+__all__ = [
+    "config",
+    "main",
+    "router",
+]
 """Orchestrator package initialization."""
 
 from .config import Settings, get_settings
