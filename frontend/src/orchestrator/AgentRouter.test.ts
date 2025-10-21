@@ -93,6 +93,39 @@ describe('AgentRouter', () => {
     expect(messages[1]?.agentId).toBe('community-educator');
   });
 
+  it('prefers the community educator for greetings that include incidental mentions of "way"', async () => {
+    const stub = new StubCustomGptService({
+      [orchestratorProjectId]: [
+        {
+          id: 'route-1b',
+          message: '{"agentId":"cartography-explorer","summary":"General greeting"}',
+          createdAt: new Date().toISOString(),
+          conversationId: 'conv-83861',
+        },
+        {
+          id: 'synth-1b',
+          message: 'Synthesis reply',
+          createdAt: new Date().toISOString(),
+          conversationId: 'conv-83861',
+        },
+      ],
+      [communityProjectId]: [
+        {
+          id: 'community-1b',
+          message: 'Community educator response',
+          createdAt: new Date().toISOString(),
+          conversationId: 'conv-83668',
+        },
+      ],
+    });
+
+    const router = new AgentRouter(stub as unknown as CustomGptService);
+    const messages = await router.routePrompt(buildUserMessage('hello, by the way...'));
+
+    expect(mapMessages(messages)).toContain('community-educator');
+    expect(messages[1]?.agentId).toBe('community-educator');
+  });
+
   it.each([
     'Need directions for UPC R12345678A please.',
     'Need directions for UPC R12-345-678 please.',
@@ -161,5 +194,40 @@ describe('AgentRouter', () => {
 
     expect(mapMessages(messages)).toContain('community-educator');
     expect(messages[1]?.agentId).toBe('community-educator');
+  });
+
+  it('routes to the cartography explorer when directional language is present without parcel context', async () => {
+    const stub = new StubCustomGptService({
+      [orchestratorProjectId]: [
+        {
+          id: 'route-4',
+          message: '{"agentId":null,"summary":"No clear match"}',
+          createdAt: new Date().toISOString(),
+          conversationId: 'conv-83861',
+        },
+        {
+          id: 'synth-4',
+          message: 'Synthesis reply',
+          createdAt: new Date().toISOString(),
+          conversationId: 'conv-83861',
+        },
+      ],
+      [cartographyProjectId]: [
+        {
+          id: 'cartography-2',
+          message: 'Directional response',
+          createdAt: new Date().toISOString(),
+          conversationId: 'conv-9262',
+        },
+      ],
+    });
+
+    const router = new AgentRouter(stub as unknown as CustomGptService);
+    const messages = await router.routePrompt(
+      buildUserMessage('Which way should I go to reach the assessor office?')
+    );
+
+    expect(mapMessages(messages)).toContain('cartography-explorer');
+    expect(messages[1]?.agentId).toBe('cartography-explorer');
   });
 });
