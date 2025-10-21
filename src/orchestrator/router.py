@@ -82,6 +82,53 @@ def _get_latest_user_message(messages: list[ChatMessage]) -> ChatMessage:
     )
 
 
+_ORCHESTRATOR_HEADER = "[ORCHESTRATOR → A.C.E]"
+_USER_TEXT_BEGIN = "USER_TEXT_BEGIN"
+_USER_TEXT_END = "USER_TEXT_END"
+
+
+def _extract_orchestrated_text(content: str) -> str:
+    """Return the payload from an orchestrator relay envelope if present."""
+
+    normalized = content.replace("\r\n", "\n").replace("\r", "\n")
+    lines = normalized.split("\n")
+
+    first_non_blank_raw = ""
+    first_non_blank_stripped = ""
+    for line in lines:
+        stripped = line.strip()
+        if stripped:
+            first_non_blank_raw = line
+            first_non_blank_stripped = stripped
+            break
+
+    if first_non_blank_stripped != _ORCHESTRATOR_HEADER:
+        return content
+
+    begin_index = None
+    for index, line in enumerate(lines):
+        if line.strip() == _USER_TEXT_BEGIN:
+            begin_index = index + 1
+            break
+
+    if begin_index is None:
+        return ""
+
+    end_index = None
+    for index in range(begin_index, len(lines)):
+        if lines[index].strip() == _USER_TEXT_END:
+            end_index = index
+            break
+
+    if end_index is None:
+        end_index = len(lines)
+
+    extracted_lines = lines[begin_index:end_index]
+    extracted_text = "\n".join(extracted_lines).rstrip("\n")
+
+    return extracted_text
+
+
 @router.post("/chat", response_model=ChatResponse, status_code=status.HTTP_200_OK)
 def orchestrate_chat(request: ChatRequest) -> ChatResponse:
     """Coordinate stub agents to produce a multi-step reply."""
@@ -93,6 +140,11 @@ def orchestrate_chat(request: ChatRequest) -> ChatResponse:
         )
 
     latest_user_message = _get_latest_user_message(request.messages)
+    extracted_content = _extract_orchestrated_text(latest_user_message.content)
+    if extracted_content == "":
+        raise HTTPException(status_code=status.HTTP_204_NO_CONTENT)
+
+    latest_user_message = ChatMessage(role=latest_user_message.role, content=extracted_content)
 
     research_summary = _RESEARCH_AGENT.run(latest_user_message.content)
     plan = _PLANNING_AGENT.run(research_summary)
