@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "orchestrator"
+version = "0.1.0"
+description = "CustomGPT orchestrator service"
+authors = ["Auto Generated <auto@example.com>"]
+readme = "README.md"
+packages = [{ include = "orchestrator", from = "src" }]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "^0.110.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.1.0"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+
+[build-system]
+requires = ["poetry-core>=1.7.0"]
+build-backend = "poetry.core.masonry.api"
