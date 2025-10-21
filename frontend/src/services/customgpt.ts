@@ -1,18 +1,25 @@
 import axios from 'axios';
 
+const API_BASE_URL = 'https://app.customgpt.ai/api/v1';
+
+interface CreateConversationResponse {
+  id: string;
+  sessionId: string;
+  name: string | null;
+}
+
 interface SendMessageParams {
   projectId: number;
   prompt: string;
-  conversationId?: string;
+  conversationId: string;
 }
 
-interface CustomGptResponse {
+export interface CustomGptResponse {
   id: string;
   message: string;
   createdAt: string;
+  conversationId: string;
 }
-
-const API_BASE_URL = 'https://app.customgpt.ai/api/v1';
 
 export class CustomGptService {
   private readonly apiKey: string;
@@ -30,32 +37,60 @@ export class CustomGptService {
     this.client.interceptors.request.use((config) => {
       config.headers = config.headers ?? {};
       config.headers.Authorization = `Bearer ${this.apiKey}`;
-      config.headers['Content-Type'] = 'application/json';
+
+      const isFormData = typeof FormData !== 'undefined' && config.data instanceof FormData;
+
+      if (isFormData) {
+        delete config.headers['Content-Type'];
+      } else if (config.headers['Content-Type'] === undefined) {
+        config.headers['Content-Type'] = 'application/json';
+      }
+
       return config;
     });
   }
 
+  public async createConversation(
+    projectId: number,
+    name?: string
+  ): Promise<CreateConversationResponse> {
+    const payload = name ? { name } : {};
+    const response = await this.client.post(`/projects/${projectId}/conversations`, payload);
+    const data = response.data?.data;
+
+    if (!data || typeof data.session_id !== 'string') {
+      throw new Error('Unexpected response while creating a CustomGPT conversation.');
+    }
+
+    return {
+      id: data.id !== undefined ? String(data.id) : crypto.randomUUID(),
+      sessionId: data.session_id,
+      name: data.name ?? null,
+    };
+  }
+
   public async sendMessage(params: SendMessageParams): Promise<CustomGptResponse> {
-    const response = await this.client.post(`/projects/${params.projectId}/chat`, {
-      messages: [
-        {
-          role: 'user',
-          content: params.prompt,
-        },
-      ],
-      conversation_id: params.conversationId,
-    });
+    const formData = new FormData();
+    formData.append('prompt', params.prompt);
 
-    const data = response.data?.data?.[0];
+    const response = await this.client.post(
+      `/projects/${params.projectId}/conversations/${params.conversationId}/messages`,
+      formData
+    );
 
-    if (!data) {
+    const data = response.data?.data;
+
+    if (!data || typeof data.openai_response !== 'string') {
       throw new Error('Unexpected response from CustomGPT.');
     }
 
     return {
-      id: data.id ?? crypto.randomUUID(),
-      message: data.message ?? '',
+      id: data.id !== undefined ? String(data.id) : crypto.randomUUID(),
+      message: data.openai_response,
       createdAt: data.created_at ?? new Date().toISOString(),
+      conversationId: data.conversation_id !== undefined
+        ? String(data.conversation_id)
+        : params.conversationId,
     };
   }
 }

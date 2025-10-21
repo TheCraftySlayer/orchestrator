@@ -44,6 +44,7 @@ export class AgentRouter {
   private readonly service: CustomGptService;
   private readonly agents: AgentConfig[];
   private readonly orchestrator: AgentConfig;
+  private readonly sessions = new Map<number, string>();
 
   constructor(
     service = new CustomGptService(),
@@ -96,10 +97,11 @@ export class AgentRouter {
     ].join('\n');
 
     try {
+      const sessionId = await this.getSessionId(this.orchestrator.projectId);
       const reply = await this.service.sendMessage({
         projectId: this.orchestrator.projectId,
         prompt,
-        conversationId: userMessage.id,
+        conversationId: sessionId,
       });
 
       const parsed = this.parseRoutingDecision(reply.message);
@@ -190,10 +192,11 @@ export class AgentRouter {
 
   private async requestExpertResponse(agent: AgentConfig, userMessage: UserMessage): Promise<AgentMessage> {
     try {
+      const sessionId = await this.getSessionId(agent.projectId);
       const reply = await this.service.sendMessage({
         projectId: agent.projectId,
         prompt: userMessage.content,
-        conversationId: userMessage.id,
+        conversationId: sessionId,
       });
 
       return this.buildAgentMessage(agent, reply.message, {
@@ -221,10 +224,11 @@ export class AgentRouter {
     ].join('\n\n');
 
     try {
+      const sessionId = await this.getSessionId(this.orchestrator.projectId);
       const reply = await this.service.sendMessage({
         projectId: this.orchestrator.projectId,
         prompt,
-        conversationId: userMessage.id,
+        conversationId: sessionId,
       });
 
       return this.buildAgentMessage(this.orchestrator, reply.message, {
@@ -255,5 +259,16 @@ export class AgentRouter {
       content,
       timestamp: metadata.timestamp ?? new Date().toISOString(),
     };
+  }
+
+  private async getSessionId(projectId: number): Promise<string> {
+    const existing = this.sessions.get(projectId);
+    if (existing) {
+      return existing;
+    }
+
+    const conversation = await this.service.createConversation(projectId);
+    this.sessions.set(projectId, conversation.sessionId);
+    return conversation.sessionId;
   }
 }
