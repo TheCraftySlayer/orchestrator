@@ -1,8 +1,10 @@
-"""Tests for the CustomGPT client."""
+"""Tests for the CustomGPT client using the HTTPX transport layer."""
+
+from __future__ import annotations
 
 import json
-from urllib import error
 
+import httpx
 import pytest
 
 from orchestrator.clients.customgpt import (
@@ -13,86 +15,72 @@ from orchestrator.clients.customgpt import (
 )
 
 
-class _MockHTTPResponse:
-    def __init__(self, status_code: int, payload: dict | None = None):
-        self._status_code = status_code
-        self._payload = payload or {}
+def _make_client(handler):
+    """Create a client that routes requests through the provided handler."""
 
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        return False
-
-    def getcode(self) -> int:
-        return self._status_code
-
-    def read(self) -> bytes:
-        if self._payload:
-            return json.dumps(self._payload).encode("utf-8")
-        return b""
+    transport = httpx.MockTransport(handler)
+    httpx_client = httpx.Client(base_url="https://app.customgpt.ai/api/v1", transport=transport)
+    client = CustomGPTClient("secret", client=httpx_client)
+    return client, httpx_client
 
 
-def test_update_conversation_success(monkeypatch):
+def test_update_conversation_success():
     """The client should return the decoded payload on success."""
 
-    captured = {}
+    captured: dict[str, object] = {}
 
-    def fake_urlopen(req, timeout):
-        captured["url"] = req.full_url
-        captured["data"] = json.loads(req.data.decode("utf-8"))
-        captured["headers"] = req.headers
-        captured["timeout"] = timeout
-        return _MockHTTPResponse(200, {"status": "ok"})
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["url"] = str(request.url)
+        captured["json"] = json.loads(request.content.decode("utf-8"))
+        captured["headers"] = {k.lower(): v for k, v in request.headers.items()}
+        return httpx.Response(200, json={"status": "ok"})
 
-    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
-
-    client = CustomGPTClient(api_key="secret")
-    result = client.update_conversation("proj", "sess", name="Demo")
+    client, httpx_client = _make_client(handler)
+    try:
+        result = client.update_conversation("proj", "sess", name="Demo")
+    finally:
+        httpx_client.close()
 
     assert result == {"status": "ok"}
     assert captured["url"].endswith("/projects/proj/conversations/sess")
-    assert captured["data"] == {"name": "Demo"}
-    assert captured["headers"]["Authorization"] == "Bearer secret"
+    assert captured["json"] == {"name": "Demo"}
+    assert captured["headers"]["authorization"] == "Bearer secret"
 
 
-def test_update_conversation_4xx(monkeypatch):
+def test_update_conversation_4xx():
     """A 4xx response should raise a client error."""
 
-    def fake_urlopen(req, timeout):
-        raise error.HTTPError(req.full_url, 404, "not found", hdrs=None, fp=None)
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(404, json={"detail": "not found"})
 
-    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
-
-    client = CustomGPTClient(api_key="secret")
-
-    with pytest.raises(CustomGPTClientError):
-        client.update_conversation("proj", "sess", name=None)
+    client, httpx_client = _make_client(handler)
+    with httpx_client:
+        with pytest.raises(CustomGPTClientError):
+            client.update_conversation("proj", "sess", name=None)
 
 
-def test_update_conversation_5xx(monkeypatch):
+def test_update_conversation_5xx():
     """A 5xx response should raise a server error."""
 
-    def fake_urlopen(req, timeout):
-        raise error.HTTPError(req.full_url, 503, "unavailable", hdrs=None, fp=None)
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(503, json={"detail": "unavailable"})
 
-    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
-
-    client = CustomGPTClient(api_key="secret")
-
-    with pytest.raises(CustomGPTServerError):
-        client.update_conversation("proj", "sess", name="Demo")
+    client, httpx_client = _make_client(handler)
+    with httpx_client:
+        with pytest.raises(CustomGPTServerError):
+            client.update_conversation("proj", "sess", name="Demo")
 
 
 def test_update_conversation_network_error(monkeypatch):
     """Network errors should surface as a generic client exception."""
 
-    def fake_urlopen(req, timeout):
-        raise error.URLError("boom")
+    client = CustomGPTClient("secret")
 
-    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    def raise_error(*args, **kwargs):  # pragma: no cover - triggered in test
+        raise httpx.RequestError("boom", request=httpx.Request("GET", "http://test"))
 
-    client = CustomGPTClient(api_key="secret")
+    monkeypatch.setattr(client._client, "request", raise_error)  # type: ignore[attr-defined]
 
     with pytest.raises(CustomGPTError):
         client.update_conversation("proj", "sess", name="Demo")
+    client.close()

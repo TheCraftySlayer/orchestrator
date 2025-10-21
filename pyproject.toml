@@ -1,11 +1,9 @@
 [tool.poetry]
 name = "orchestrator"
 version = "0.1.0"
-description = "CustomGPT Orchestrator service"
-authors = ["Auto Generated <auto@example.com>"]
-package-mode = true
 description = "CustomGPT orchestrator service"
 authors = ["Auto Generated <auto@example.com>"]
+package-mode = true
 readme = "README.md"
 packages = [{ include = "orchestrator", from = "src" }]
 
@@ -14,12 +12,6 @@ python = "^3.11"
 fastapi = "^0.110.0"
 httpx = "^0.27.0"
 pydantic = "^1.10.0"
-
-[tool.poetry.group.dev.dependencies]
-pytest = "^8.0.0"
-
-[build-system]
-requires = ["poetry-core>=1.6.0"]
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.1.0"
