@@ -257,18 +257,32 @@ export class AgentRouter {
   }
 
   private containsParcelIdentifier(prompt: string): boolean {
-    const tokens = prompt
-      .replace(/[^A-Za-z0-9]/g, ' ')
+    const sanitizedTokens = prompt
+      .toUpperCase()
       .split(/\s+/)
+      .map((token) => token.replace(/[^A-Z0-9]/g, ''))
       .filter((token) => token.length > 0);
 
-    return tokens.some((token) => {
-      const normalized = token.toUpperCase();
-      return (
-        PARCEL_PREFIX_PATTERN.test(normalized) ||
-        PARCEL_ALPHANUMERIC_PATTERN.test(normalized)
-      );
-    });
+    for (let start = 0; start < sanitizedTokens.length; start++) {
+      let combined = '';
+
+      for (let end = start; end < sanitizedTokens.length; end++) {
+        combined += sanitizedTokens[end];
+
+        if (combined.length > 25) {
+          break;
+        }
+
+        if (
+          PARCEL_PREFIX_PATTERN.test(combined) ||
+          PARCEL_ALPHANUMERIC_PATTERN.test(combined)
+        ) {
+          return true;
+        }
+      }
+    }
+
+    return false;
   }
 
   private async requestExpertResponse(agent: AgentConfig, userMessage: UserMessage): Promise<AgentMessage> {

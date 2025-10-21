@@ -93,7 +93,11 @@ describe('AgentRouter', () => {
     expect(messages[1]?.agentId).toBe('community-educator');
   });
 
-  it('routes to the cartography explorer when a parcel identifier is present', async () => {
+  it.each([
+    'Need directions for UPC R12345678A please.',
+    'Need directions for UPC R12-345-678 please.',
+    'Need directions for UPC R12 345 678 please.',
+  ])('routes to the cartography explorer when a parcel identifier is present (%s)', async (content) => {
     const stub = new StubCustomGptService({
       [orchestratorProjectId]: [
         {
@@ -120,7 +124,7 @@ describe('AgentRouter', () => {
     });
 
     const router = new AgentRouter(stub as unknown as CustomGptService);
-    const messages = await router.routePrompt(buildUserMessage('Need directions for UPC R12345678A please.'));
+    const messages = await router.routePrompt(buildUserMessage(content));
 
     expect(mapMessages(messages)).toContain('cartography-explorer');
     expect(messages[1]?.agentId).toBe('cartography-explorer');
