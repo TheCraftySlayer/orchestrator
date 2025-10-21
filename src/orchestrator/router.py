@@ -71,12 +71,9 @@ def list_project_conversations(
         except ValueError:  # pragma: no cover - fallback when body is not JSON
             detail = {"detail": exc.response.text}
 
-        if status_code == status.HTTP_400_BAD_REQUEST:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
-        if status_code == status.HTTP_401_UNAUTHORIZED:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=detail)
-        if status_code == status.HTTP_404_NOT_FOUND:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=detail)
+        if 400 <= status_code < 500:
+            raise HTTPException(status_code=status_code, detail=detail)
+
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=detail)
 
 
