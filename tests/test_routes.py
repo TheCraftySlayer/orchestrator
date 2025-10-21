@@ -210,3 +210,50 @@ def test_orchestrate_chat_returns_no_content_for_empty_orchestrator_payload(clie
     response = client.post("/v1/chat", json=payload)
 
     assert response.status_code == status.HTTP_204_NO_CONTENT
+
+
+def test_orchestrate_chat_handles_leading_whitespace_in_header(client: TestClient):
+    payload = {
+        "conversation_id": "conv-202",
+        "messages": [
+            {
+                "role": "user",
+                "content": "\n".join(
+                    [
+                        "   [ORCHESTRATOR → A.C.E]",
+                        "USER_TEXT_BEGIN",
+                        "Hello",
+                        "USER_TEXT_END",
+                    ]
+                ),
+            }
+        ],
+    }
+
+    response = client.post("/v1/chat", json=payload)
+
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert data["steps"][0]["output"].endswith("Hello")
+
+
+def test_orchestrate_chat_missing_user_text_begin_returns_no_content(client: TestClient):
+    payload = {
+        "conversation_id": "conv-303",
+        "messages": [
+            {
+                "role": "user",
+                "content": "\n".join(
+                    [
+                        "[ORCHESTRATOR → A.C.E]",
+                        "Some instructions",
+                        "USER_TEXT_END",
+                    ]
+                ),
+            }
+        ],
+    }
+
+    response = client.post("/v1/chat", json=payload)
+
+    assert response.status_code == status.HTTP_204_NO_CONTENT

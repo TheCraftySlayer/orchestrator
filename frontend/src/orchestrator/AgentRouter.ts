@@ -26,6 +26,9 @@ const KEYWORD_MATCHERS: Array<{ test: RegExp; agentId: AgentConfig['id'] }> = [
   },
 ];
 
+const PARCEL_PREFIX_PATTERN = /^(?:R|1|2|9)\d{7,8}[A-Z]?$/;
+const PARCEL_ALPHANUMERIC_PATTERN = /^(?=.*\d)[A-Z0-9]{6,25}$/;
+
 interface ConversationSession {
   conversationId: string;
   sessionId: string;
@@ -169,7 +172,10 @@ export class AgentRouter {
       };
 
       return {
-        agentId: parsed.agentId ?? null,
+        agentId:
+          parsed.agentId !== undefined && parsed.agentId !== null
+            ? String(parsed.agentId)
+            : null,
         summary: parsed.summary ?? parsed.reason,
       };
     } catch (error) {
@@ -186,11 +192,9 @@ export class AgentRouter {
   }
 
   private resolveAgent(decision: RoutingDecision, prompt: string): AgentConfig {
-    if (decision.agentId) {
-      const agent = this.findAgentById(decision.agentId);
-      if (agent && this.isPromptCompatibleWithAgent(prompt, agent.id)) {
-        return agent;
-      }
+    const candidate = this.findAgentFromDecision(decision.agentId);
+    if (candidate && this.isPromptCompatibleWithAgent(prompt, candidate.id)) {
+      return candidate;
     }
 
     return this.fallbackAgent(prompt);
@@ -211,17 +215,74 @@ export class AgentRouter {
     return this.findAgentById('community-educator') ?? this.agents[0];
   }
 
+  private findAgentById(agentId: AgentConfig['id']): AgentConfig | undefined {
+    return this.agents.find((candidate) => candidate.id === agentId);
+  }
+
   private isPromptCompatibleWithAgent(prompt: string, agentId: AgentConfig['id']): boolean {
     const matcher = KEYWORD_MATCHERS.find((candidate) => candidate.agentId === agentId);
     if (!matcher || agentId === 'community-educator') {
       return true;
     }
 
-    return matcher.test.test(prompt.toLowerCase());
+    const normalizedPrompt = prompt.toLowerCase();
+    const keywordMatch = matcher.test.test(normalizedPrompt);
+
+    if (agentId === 'cartography-explorer') {
+      return keywordMatch || this.containsParcelIdentifier(prompt);
+    }
+
+    return keywordMatch;
   }
 
-  private findAgentById(agentId: AgentConfig['id']): AgentConfig | undefined {
-    return this.agents.find((candidate) => candidate.id === agentId);
+  private findAgentFromDecision(agentId: string | null): AgentConfig | undefined {
+    if (agentId == null) {
+      return undefined;
+    }
+
+    const normalized = agentId.toString().trim().toLowerCase();
+    if (normalized.length === 0) {
+      return undefined;
+    }
+
+    return this.agents.find((candidate) => {
+      if (candidate.id.toLowerCase() === normalized) {
+        return true;
+      }
+      if (candidate.name.toLowerCase() === normalized) {
+        return true;
+      }
+      return String(candidate.projectId) === normalized;
+    });
+  }
+
+  private containsParcelIdentifier(prompt: string): boolean {
+    const sanitizedTokens = prompt
+      .toUpperCase()
+      .split(/\s+/)
+      .map((token) => token.replace(/[^A-Z0-9]/g, ''))
+      .filter((token) => token.length > 0);
+
+    for (let start = 0; start < sanitizedTokens.length; start++) {
+      let combined = '';
+
+      for (let end = start; end < sanitizedTokens.length; end++) {
+        combined += sanitizedTokens[end];
+
+        if (combined.length > 25) {
+          break;
+        }
+
+        if (
+          PARCEL_PREFIX_PATTERN.test(combined) ||
+          PARCEL_ALPHANUMERIC_PATTERN.test(combined)
+        ) {
+          return true;
+        }
+      }
+    }
+
+    return false;
   }
 
   private async requestExpertResponse(agent: AgentConfig, userMessage: UserMessage): Promise<AgentMessage> {
