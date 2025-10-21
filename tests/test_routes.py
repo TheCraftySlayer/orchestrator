@@ -158,3 +158,55 @@ def test_orchestrate_chat_requires_user_message(client: TestClient):
 
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert response.json()["detail"] == "At least one user message is required to generate a response."
+
+
+def test_orchestrate_chat_unwraps_orchestrator_payload(client: TestClient):
+    payload = {
+        "conversation_id": "conv-789",
+        "messages": [
+            {
+                "role": "user",
+                "content": "\n".join(
+                    [
+                        "[ORCHESTRATOR → A.C.E]",
+                        "AGENT_ID: 37400",
+                        "CONVERSATION_ID: abc123",
+                        "",
+                        "USER_TEXT_BEGIN",
+                        "How much is the head of family exemption?",
+                        "USER_TEXT_END",
+                    ]
+                ),
+            }
+        ],
+    }
+
+    response = client.post("/v1/chat", json=payload)
+
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    research_step = data["steps"][0]
+    assert research_step["agent"] == "researcher"
+    assert research_step["output"].endswith("How much is the head of family exemption?")
+
+
+def test_orchestrate_chat_returns_no_content_for_empty_orchestrator_payload(client: TestClient):
+    payload = {
+        "conversation_id": "conv-101",
+        "messages": [
+            {
+                "role": "user",
+                "content": "\n".join(
+                    [
+                        "[ORCHESTRATOR → A.C.E]",
+                        "USER_TEXT_BEGIN",
+                        "USER_TEXT_END",
+                    ]
+                ),
+            }
+        ],
+    }
+
+    response = client.post("/v1/chat", json=payload)
+
+    assert response.status_code == status.HTTP_204_NO_CONTENT
