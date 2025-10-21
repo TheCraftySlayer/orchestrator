@@ -8,10 +8,20 @@ interface CreateConversationResponse {
   name: string | null;
 }
 
+type ResponseSourceOption = 'default' | 'own_content' | 'openai_content';
+
 interface SendMessageParams {
   projectId: number;
+  sessionId: string;
   prompt: string;
-  conversationId: string;
+  customPersona?: string;
+  chatbotModel?: string;
+  responseSource?: ResponseSourceOption;
+  customContext?: string;
+  stream?: boolean;
+  lang?: string;
+  externalId?: string;
+  cacheControl?: 'no-cache';
 }
 
 export interface CustomGptResponse {
@@ -70,12 +80,49 @@ export class CustomGptService {
   }
 
   public async sendMessage(params: SendMessageParams): Promise<CustomGptResponse> {
-    const formData = new FormData();
-    formData.append('prompt', params.prompt);
+    const payload: Record<string, unknown> = { prompt: params.prompt };
+
+    if (params.customPersona) {
+      payload.custom_persona = params.customPersona;
+    }
+    if (params.chatbotModel) {
+      payload.chatbot_model = params.chatbotModel;
+    }
+    if (params.responseSource) {
+      payload.response_source = params.responseSource;
+    }
+    if (params.customContext) {
+      payload.custom_context = params.customContext;
+    }
+
+    const query: Record<string, unknown> = {};
+    if (params.stream !== undefined) {
+      query.stream = params.stream;
+    }
+    if (params.lang) {
+      query.lang = params.lang;
+    }
+    if (params.externalId) {
+      query.external_id = params.externalId;
+    }
+
+    const requestConfig: {
+      params?: Record<string, unknown>;
+      headers?: Record<string, string>;
+    } = {};
+
+    if (Object.keys(query).length > 0) {
+      requestConfig.params = query;
+    }
+
+    if (params.cacheControl) {
+      requestConfig.headers = { 'Cache-Control': params.cacheControl };
+    }
 
     const response = await this.client.post(
-      `/projects/${params.projectId}/conversations/${params.conversationId}/messages`,
-      formData
+      `/projects/${params.projectId}/conversations/${params.sessionId}/messages`,
+      payload,
+      requestConfig
     );
 
     const data = response.data?.data;
@@ -90,7 +137,7 @@ export class CustomGptService {
       createdAt: data.created_at ?? new Date().toISOString(),
       conversationId: data.conversation_id !== undefined
         ? String(data.conversation_id)
-        : params.conversationId,
+        : params.sessionId,
     };
   }
 }

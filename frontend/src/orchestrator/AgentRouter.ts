@@ -101,7 +101,7 @@ export class AgentRouter {
       const reply = await this.service.sendMessage({
         projectId: this.orchestrator.projectId,
         prompt,
-        conversationId: sessionId,
+        sessionId,
       });
 
       const parsed = this.parseRoutingDecision(reply.message);
@@ -196,7 +196,7 @@ export class AgentRouter {
       const reply = await this.service.sendMessage({
         projectId: agent.projectId,
         prompt: userMessage.content,
-        conversationId: sessionId,
+        sessionId,
       });
 
       return this.buildAgentMessage(agent, reply.message, {
@@ -228,7 +228,7 @@ export class AgentRouter {
       const reply = await this.service.sendMessage({
         projectId: this.orchestrator.projectId,
         prompt,
-        conversationId: sessionId,
+        sessionId,
       });
 
       return this.buildAgentMessage(this.orchestrator, reply.message, {
