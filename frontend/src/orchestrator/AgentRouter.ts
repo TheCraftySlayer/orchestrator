@@ -97,7 +97,10 @@ export class AgentRouter {
     ].join('\n');
 
     try {
-      const sessionId = await this.getSessionId(this.orchestrator.projectId);
+      const sessionId = await this.getSessionId(
+        this.orchestrator.projectId,
+        `${this.orchestrator.name} Session`
+      );
       const reply = await this.service.sendMessage({
         projectId: this.orchestrator.projectId,
         prompt,
@@ -192,7 +195,7 @@ export class AgentRouter {
 
   private async requestExpertResponse(agent: AgentConfig, userMessage: UserMessage): Promise<AgentMessage> {
     try {
-      const sessionId = await this.getSessionId(agent.projectId);
+      const sessionId = await this.getSessionId(agent.projectId, `${agent.name} Session`);
       const reply = await this.service.sendMessage({
         projectId: agent.projectId,
         prompt: userMessage.content,
@@ -224,7 +227,10 @@ export class AgentRouter {
     ].join('\n\n');
 
     try {
-      const sessionId = await this.getSessionId(this.orchestrator.projectId);
+      const sessionId = await this.getSessionId(
+        this.orchestrator.projectId,
+        `${this.orchestrator.name} Session`
+      );
       const reply = await this.service.sendMessage({
         projectId: this.orchestrator.projectId,
         prompt,
@@ -261,13 +267,13 @@ export class AgentRouter {
     };
   }
 
-  private async getSessionId(projectId: number): Promise<string> {
+  private async getSessionId(projectId: number, conversationName?: string): Promise<string> {
     const existing = this.sessions.get(projectId);
     if (existing) {
       return existing;
     }
 
-    const conversation = await this.service.createConversation(projectId);
+    const conversation = await this.service.createConversation(projectId, conversationName);
     this.sessions.set(projectId, conversation.sessionId);
     return conversation.sessionId;
   }

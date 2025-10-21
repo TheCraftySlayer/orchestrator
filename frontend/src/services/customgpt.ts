@@ -66,7 +66,13 @@ export class CustomGptService {
     projectId: number,
     name?: string
   ): Promise<CreateConversationResponse> {
-    const payload = name ? { name } : {};
+    const resolvedName = name?.trim();
+    const conversationName =
+      resolvedName && resolvedName.length > 0
+        ? resolvedName
+        : `Session started ${new Date().toISOString()}`;
+
+    const payload = { name: conversationName };
     const response = await this.client.post(`/projects/${projectId}/conversations`, payload);
     const data = response.data?.data;
 
