@@ -12,7 +12,7 @@ type ResponseSourceOption = 'default' | 'own_content' | 'openai_content';
 
 interface SendMessageParams {
   projectId: number;
-  sessionId: string;
+  conversationId: string;
   prompt: string;
   customPersona?: string;
   chatbotModel?: string;
@@ -128,7 +128,7 @@ export class CustomGptService {
     }
 
     const response = await this.client.post(
-      `/projects/${params.projectId}/conversations/${params.sessionId}/messages`,
+      `/projects/${params.projectId}/conversations/${params.conversationId}/messages`,
       payload,
       requestConfig
     );
@@ -145,7 +145,7 @@ export class CustomGptService {
       createdAt: data.created_at ?? new Date().toISOString(),
       conversationId: data.conversation_id !== undefined
         ? String(data.conversation_id)
-        : params.sessionId,
+        : params.conversationId,
     };
   }
 }

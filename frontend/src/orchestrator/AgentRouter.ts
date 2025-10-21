@@ -6,6 +6,31 @@ interface RoutingDecision {
   summary: string;
 }
 
+const KEYWORD_MATCHERS: Array<{ test: RegExp; agentId: AgentConfig['id'] }> = [
+  {
+    test: /legal|law|compliance|regulation|regulatory|statute|contract/,
+    agentId: 'compliance-expert',
+  },
+  {
+    test: /office|policy|policies|workplace|expectation|procedure|guideline/,
+    agentId: 'expectations-advisor',
+  },
+  {
+    test: /direction|drive|route|map|navigate|navigation|location|way/,
+    agentId: 'cartography-explorer',
+  },
+  {
+    test:
+      /general|information|info|overview|faq|question|^\s*(hi|hello|hey|greetings|good\s+(morning|afternoon|evening))\b/,
+    agentId: 'community-educator',
+  },
+];
+
+interface ConversationSession {
+  conversationId: string;
+  sessionId: string;
+}
+
 const DEFAULT_AGENTS: AgentConfig[] = [
   {
     id: 'community-educator',
@@ -44,7 +69,7 @@ export class AgentRouter {
   private readonly service: CustomGptService;
   private readonly agents: AgentConfig[];
   private readonly orchestrator: AgentConfig;
-  private readonly sessions = new Map<number, string>();
+  private readonly sessions = new Map<number, ConversationSession>();
 
   constructor(
     service = new CustomGptService(),
@@ -97,14 +122,14 @@ export class AgentRouter {
     ].join('\n');
 
     try {
-      const sessionId = await this.getSessionId(
+      const { conversationId } = await this.getConversationSession(
         this.orchestrator.projectId,
         `${this.orchestrator.name} Session`
       );
       const reply = await this.service.sendMessage({
         projectId: this.orchestrator.projectId,
         prompt,
-        sessionId,
+        conversationId,
       });
 
       const parsed = this.parseRoutingDecision(reply.message);
@@ -162,8 +187,8 @@ export class AgentRouter {
 
   private resolveAgent(decision: RoutingDecision, prompt: string): AgentConfig {
     if (decision.agentId) {
-      const agent = this.agents.find((candidate) => candidate.id === decision.agentId);
-      if (agent) {
+      const agent = this.findAgentById(decision.agentId);
+      if (agent && this.isPromptCompatibleWithAgent(prompt, agent.id)) {
         return agent;
       }
     }
@@ -174,32 +199,41 @@ export class AgentRouter {
   private fallbackAgent(prompt: string): AgentConfig {
     const normalized = prompt.toLowerCase();
 
-    const matchers: Array<{ test: RegExp; agentId: AgentConfig['id'] }> = [
-      { test: /legal|law|compliance|regulation|regulatory|statute|contract/, agentId: 'compliance-expert' },
-      { test: /office|policy|policies|workplace|expectation|procedure|guideline/, agentId: 'expectations-advisor' },
-      { test: /direction|drive|route|map|navigate|navigation|location|way/, agentId: 'cartography-explorer' },
-      { test: /general|information|info|overview|faq|question/, agentId: 'community-educator' },
-    ];
-
-    for (const matcher of matchers) {
+    for (const matcher of KEYWORD_MATCHERS) {
       if (matcher.test.test(normalized)) {
-        const agent = this.agents.find((candidate) => candidate.id === matcher.agentId);
+        const agent = this.findAgentById(matcher.agentId);
         if (agent) {
           return agent;
         }
       }
     }
 
-    return this.agents[0];
+    return this.findAgentById('community-educator') ?? this.agents[0];
+  }
+
+  private isPromptCompatibleWithAgent(prompt: string, agentId: AgentConfig['id']): boolean {
+    const matcher = KEYWORD_MATCHERS.find((candidate) => candidate.agentId === agentId);
+    if (!matcher || agentId === 'community-educator') {
+      return true;
+    }
+
+    return matcher.test.test(prompt.toLowerCase());
+  }
+
+  private findAgentById(agentId: AgentConfig['id']): AgentConfig | undefined {
+    return this.agents.find((candidate) => candidate.id === agentId);
   }
 
   private async requestExpertResponse(agent: AgentConfig, userMessage: UserMessage): Promise<AgentMessage> {
     try {
-      const sessionId = await this.getSessionId(agent.projectId, `${agent.name} Session`);
+      const { conversationId } = await this.getConversationSession(
+        agent.projectId,
+        `${agent.name} Session`
+      );
       const reply = await this.service.sendMessage({
         projectId: agent.projectId,
         prompt: userMessage.content,
-        sessionId,
+        conversationId,
       });
 
       return this.buildAgentMessage(agent, reply.message, {
@@ -227,14 +261,14 @@ export class AgentRouter {
     ].join('\n\n');
 
     try {
-      const sessionId = await this.getSessionId(
+      const { conversationId } = await this.getConversationSession(
         this.orchestrator.projectId,
         `${this.orchestrator.name} Session`
       );
       const reply = await this.service.sendMessage({
         projectId: this.orchestrator.projectId,
         prompt,
-        sessionId,
+        conversationId,
       });
 
       return this.buildAgentMessage(this.orchestrator, reply.message, {
@@ -267,14 +301,22 @@ export class AgentRouter {
     };
   }
 
-  private async getSessionId(projectId: number, conversationName?: string): Promise<string> {
+  private async getConversationSession(
+    projectId: number,
+    conversationName?: string
+  ): Promise<ConversationSession> {
     const existing = this.sessions.get(projectId);
     if (existing) {
       return existing;
     }
 
     const conversation = await this.service.createConversation(projectId, conversationName);
-    this.sessions.set(projectId, conversation.sessionId);
-    return conversation.sessionId;
+    const session: ConversationSession = {
+      conversationId: conversation.id,
+      sessionId: conversation.sessionId,
+    };
+
+    this.sessions.set(projectId, session);
+    return session;
   }
 }
