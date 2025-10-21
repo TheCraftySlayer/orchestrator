@@ -8,27 +8,27 @@ interface AgentResponse {
 
 const DEFAULT_AGENTS: AgentConfig[] = [
   {
-    id: 'support',
-    name: 'Customer Support',
-    description: 'Handles customer support inquiries and troubleshooting.',
+    id: 'community-educator',
+    name: 'Assessor Community Educator',
+    description: 'Shares general information and broad guidance for open-ended questions.',
     projectId: 83668,
   },
   {
-    id: 'sales',
-    name: 'Sales Advisor',
-    description: 'Answers questions about pricing, plans, and purchasing.',
+    id: 'compliance-expert',
+    name: "Assessor's Compliance Expert",
+    description: 'Provides legal insights, compliance clarifications, and regulatory guidance.',
     projectId: 49501,
   },
   {
-    id: 'documentation',
-    name: 'Documentation Guide',
-    description: 'Provides detailed documentation references and explanations.',
+    id: 'expectations-advisor',
+    name: 'Advisor for Clear Expectations',
+    description: 'Clarifies office policies, workplace expectations, and procedural details.',
     projectId: 37400,
   },
   {
-    id: 'developer',
-    name: 'Developer Expert',
-    description: 'Assists with integration and development related questions.',
+    id: 'cartography-explorer',
+    name: "Assessor's Cartography Explorer",
+    description: 'Offers driving directions, navigation support, and location-specific assistance.',
     projectId: 9262,
   },
 ];
@@ -58,6 +58,7 @@ export class AgentRouter {
             id: reply.id,
             role: 'agent',
             agentId: agent.id,
+            agentName: agent.name,
             projectId: agent.projectId,
             content: reply.message,
             timestamp: reply.createdAt,
@@ -81,6 +82,7 @@ export class AgentRouter {
           id: crypto.randomUUID(),
           role: 'agent',
           agentId: agent.id,
+          agentName: agent.name,
           projectId: agent.projectId,
           content: error instanceof Error ? error.message : 'Unknown error while contacting agent.',
           timestamp: new Date().toISOString(),
@@ -96,14 +98,14 @@ export class AgentRouter {
 
     const matchedAgents = this.agents.filter((agent) => {
       switch (agent.id) {
-        case 'support':
-          return /support|help|issue|problem|bug|error/.test(normalized);
-        case 'sales':
-          return /price|plan|buy|purchase|cost/.test(normalized);
-        case 'documentation':
-          return /documentation|docs|guide|manual|instructions/.test(normalized);
-        case 'developer':
-          return /api|integration|developer|code|sdk/.test(normalized);
+        case 'community-educator':
+          return /general|information|info|overview|faq|question/.test(normalized);
+        case 'compliance-expert':
+          return /legal|law|compliance|regulation|regulatory|statute|contract/.test(normalized);
+        case 'expectations-advisor':
+          return /office|policy|policies|workplace|expectation|procedure|guideline/.test(normalized);
+        case 'cartography-explorer':
+          return /direction|drive|route|map|navigate|navigation|location|way/.test(normalized);
         default:
           return true;
       }

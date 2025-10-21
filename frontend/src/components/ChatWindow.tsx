@@ -11,7 +11,8 @@ interface ChatWindowProps {
 
 function MessageBubble({ message }: { message: UserMessage | AgentMessage }) {
   const isUser = message.role === 'user';
-  const label = isUser ? 'You' : `Agent ${'agentId' in message ? message.agentId : ''}`;
+  const agentLabel = 'agentId' in message ? message.agentName : '';
+  const label = isUser ? 'You' : `Agent ${agentLabel}`;
 
   return (
     <div

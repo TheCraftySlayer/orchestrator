@@ -11,6 +11,7 @@ export interface UserMessage extends BaseMessage {
 export interface AgentMessage extends BaseMessage {
   role: 'agent';
   agentId: string;
+  agentName: string;
   projectId: number;
 }
 
