@@ -47,6 +47,8 @@ export class CustomGptService {
     this.client.interceptors.request.use((config) => {
       config.headers = config.headers ?? {};
       config.headers.Authorization = `Bearer ${this.apiKey}`;
+      config.headers['X-API-Key'] = this.apiKey;
+      config.headers.Accept = config.headers.Accept ?? 'application/json';
 
       const isFormData = typeof FormData !== 'undefined' && config.data instanceof FormData;
 
