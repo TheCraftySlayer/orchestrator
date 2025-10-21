@@ -103,6 +103,8 @@ def _extract_orchestrated_text(content: str) -> str:
             break
 
     if first_non_blank_stripped != _ORCHESTRATOR_HEADER:
+    first_non_blank = next((line for line in lines if line.strip()), "")
+    if first_non_blank != _ORCHESTRATOR_HEADER:
         return content
 
     begin_index = None
@@ -113,6 +115,7 @@ def _extract_orchestrated_text(content: str) -> str:
 
     if begin_index is None:
         return ""
+        return content
 
     end_index = None
     for index in range(begin_index, len(lines)):
