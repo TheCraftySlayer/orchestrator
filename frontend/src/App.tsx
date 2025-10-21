@@ -28,6 +28,8 @@ function App() {
         id: crypto.randomUUID(),
         role: 'agent',
         agentId: 'system',
+        agentName: 'System',
+        projectId: -1,
         content:
           error instanceof Error
             ? `An error occurred: ${error.message}`
