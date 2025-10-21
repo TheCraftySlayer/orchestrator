@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from httpx import HTTPStatusError, RequestError
 from pydantic import BaseModel
 
+from orchestrator.agents import BuilderAgent, PlanningAgent, ResearchAgent, ReviewerAgent
 from orchestrator.clients.customgpt import (
     CustomGPTClient,
     CustomGPTClientError,
@@ -31,6 +32,82 @@ class UpdateConversationResponse(BaseModel):
 
 
 router = APIRouter(prefix="/v1")
+
+
+class ChatMessage(BaseModel):
+    """Message exchanged within a conversation."""
+
+    role: Literal["user", "assistant", "system"]
+    content: str
+
+
+class ChatRequest(BaseModel):
+    """Incoming payload for the chat orchestration endpoint."""
+
+    conversation_id: str
+    messages: list[ChatMessage]
+    context: dict[str, Any] | None = None
+
+
+class ChatStep(BaseModel):
+    """Individual agent contribution captured for debugging purposes."""
+
+    agent: str
+    output: str
+
+
+class ChatResponse(BaseModel):
+    """Structured response returned by the orchestrator."""
+
+    conversation_id: str
+    reply: str
+    steps: list[ChatStep]
+
+
+_RESEARCH_AGENT = ResearchAgent()
+_PLANNING_AGENT = PlanningAgent()
+_BUILDER_AGENT = BuilderAgent()
+_REVIEWER_AGENT = ReviewerAgent()
+
+
+def _get_latest_user_message(messages: list[ChatMessage]) -> ChatMessage:
+    """Return the most recent user-authored message from the conversation history."""
+
+    for message in reversed(messages):
+        if message.role == "user":
+            return message
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="At least one user message is required to generate a response.",
+    )
+
+
+@router.post("/chat", response_model=ChatResponse, status_code=status.HTTP_200_OK)
+def orchestrate_chat(request: ChatRequest) -> ChatResponse:
+    """Coordinate stub agents to produce a multi-step reply."""
+
+    if not request.messages:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Conversation history must include at least one message.",
+        )
+
+    latest_user_message = _get_latest_user_message(request.messages)
+
+    research_summary = _RESEARCH_AGENT.run(latest_user_message.content)
+    plan = _PLANNING_AGENT.run(research_summary)
+    draft = _BUILDER_AGENT.run(plan)
+    review = _REVIEWER_AGENT.run(draft)
+
+    reply = "\n\n".join([research_summary, plan, draft, review])
+    steps = [
+        ChatStep(agent="researcher", output=research_summary),
+        ChatStep(agent="planner", output=plan),
+        ChatStep(agent="builder", output=draft),
+        ChatStep(agent="reviewer", output=review),
+    ]
+
+    return ChatResponse(conversation_id=request.conversation_id, reply=reply, steps=steps)
 
 
 _CUSTOMGPT_STATUS_MAP: tuple[tuple[type[CustomGPTError], int], ...] = (
@@ -133,4 +210,9 @@ def update_conversation(
     return UpdateConversationResponse(detail="Conversation updated.", data=data)
 
 
-__all__ = ["router", "list_project_conversations", "update_conversation"]
+__all__ = [
+    "router",
+    "list_project_conversations",
+    "update_conversation",
+    "orchestrate_chat",
+]

@@ -127,3 +127,34 @@ def test_list_conversations_network_error_results_in_bad_gateway(client: TestCli
         response = client.get("/v1/projects/proj-123/conversations")
     assert response.status_code == status.HTTP_502_BAD_GATEWAY
     assert response.json() == {"detail": {"detail": "network"}}
+
+
+def test_orchestrate_chat_returns_agent_steps(client: TestClient):
+    payload = {
+        "conversation_id": "conv-123",
+        "messages": [
+            {"role": "user", "content": "Explain the zoning rules for residential areas."}
+        ],
+    }
+
+    response = client.post("/v1/chat", json=payload)
+
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert data["conversation_id"] == "conv-123"
+    assert len(data["steps"]) == 4
+    assert data["steps"][0]["agent"] == "researcher"
+    assert "Researching" in data["steps"][0]["output"]
+    assert "Review" in data["reply"]
+
+
+def test_orchestrate_chat_requires_user_message(client: TestClient):
+    payload = {
+        "conversation_id": "conv-456",
+        "messages": [{"role": "assistant", "content": "How can I assist?"}],
+    }
+
+    response = client.post("/v1/chat", json=payload)
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert response.json()["detail"] == "At least one user message is required to generate a response."
