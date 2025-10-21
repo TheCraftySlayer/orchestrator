@@ -22,7 +22,11 @@ def _load_settings() -> Settings:
     if not api_key:
         raise RuntimeError("CUSTOMGPT_API_KEY environment variable is required")
 
-    api_base = os.getenv("CUSTOMGPT_API_BASE", "https://app.customgpt.ai/api/v1")
+    api_base = os.getenv("CUSTOMGPT_API_BASE")
+    if not api_base:
+        api_base = os.getenv("CUSTOMGPT_BASE_URL")
+    if not api_base:
+        api_base = "https://app.customgpt.ai/api/v1"
     orchestrator_base = os.getenv("ORCHESTRATOR_BASE_URL")
 
     return Settings(
