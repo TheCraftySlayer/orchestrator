@@ -1,17 +1,20 @@
-"""Top-level package for the CustomGPT Orchestrator service."""
-
-__all__ = [
-    "config",
-    "main",
-    "router",
-]
-"""Orchestrator package initialization."""
-
-from .config import Settings, get_settings
-
-__all__ = ["Settings", "get_settings"]
 """Orchestrator package for interacting with CustomGPT."""
 
-from .clients.customgpt import CustomGPTClient, CustomGPTError
+from .clients.customgpt import (
+    CustomGPTClient,
+    CustomGPTClientError,
+    CustomGPTError,
+    CustomGPTServerError,
+    get_customgpt_client,
+)
+from .config import Settings, get_settings
 
-__all__ = ["CustomGPTClient", "CustomGPTError"]
+__all__ = [
+    "CustomGPTClient",
+    "CustomGPTClientError",
+    "CustomGPTError",
+    "CustomGPTServerError",
+    "get_customgpt_client",
+    "Settings",
+    "get_settings",
+]
