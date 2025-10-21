@@ -12,12 +12,19 @@ const KEYWORD_MATCHERS: Array<{ test: RegExp; agentId: AgentConfig['id'] }> = [
     agentId: 'compliance-expert',
   },
   {
-    test: /office|policy|policies|workplace|expectation|procedure|guideline/,
-    agentId: 'expectations-advisor',
+    test: new RegExp(
+      [
+        '\\b(?:direction|drive|route|map|navigate|navigation|location|wayfinding)\\b',
+        '\\bwhich\\s+way\\b',
+        '\\bfind(?:ing)?\\s+my\\s+way\\b',
+        '\\bway\\s+(?:to|toward|from)\\b',
+      ].join('|')
+    ),
+    agentId: 'cartography-explorer',
   },
   {
-    test: /direction|drive|route|map|navigate|navigation|location|way/,
-    agentId: 'cartography-explorer',
+    test: /office|policy|policies|workplace|expectation|procedure|guideline/,
+    agentId: 'expectations-advisor',
   },
   {
     test:
